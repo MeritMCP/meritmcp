@@ -120,7 +120,7 @@ function parseScenarios(outDir: string, opts: ConformanceOptions): ConformanceSc
 //     our proxy, not the server.
 // What remains is the honest core: "does your server correctly implement the protocol surface
 // it declares?" (initialize, ping, the *-list scenarios, a basic tool call + error, log level).
-function isApplicable(scenario: string, opts: ConformanceOptions): boolean {
+export function isApplicable(scenario: string, opts: ConformanceOptions): boolean {
   const caps = opts.capabilities ?? {};
   const has = (k: string) => caps[k] !== undefined && caps[k] !== null;
 
