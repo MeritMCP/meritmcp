@@ -35,7 +35,11 @@ jobs:
       - name: Fetch registry server list
         run: node scripts/fetch-registry.mjs --limit=${{ inputs.limit }}
       - name: Scan (static-only by default; never sends live probes)
-        run: node scripts/expose.mjs ${{ inputs.conformance && '--conformance' || '' }}
+        run: |
+          EXTRA=""
+          if [ "${{ inputs.conformance }}" = "true" ]; then EXTRA="--conformance"; fi
+          echo "conformance input='${{ inputs.conformance }}' → args='$EXTRA'"
+          node scripts/expose.mjs $EXTRA
       - name: Upload Trust Report
         if: always()
         uses: actions/upload-artifact@v4
