@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.4
+- **MCP01 secrets: removed the generic high-entropy heuristic** (kept only structured formats: AWS/GitHub/OpenAI-style/Google/Slack/Stripe). The heuristic false-positived on ordinary identifiers in tool metadata (e.g. a tool named `monarch_login_with_token`); a security scanner must not cry wolf. Real, recognizable keys are still flagged.
+
 ## 0.1.3
 - `merit --version` and the SARIF report version now read the real package version (was hard-coded).
 

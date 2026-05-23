@@ -1,6 +1,6 @@
 {
   "name": "meritmcp",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "The CI quality gate for MCP servers — functional tests + official conformance + OWASP-MCP-Top-10 security in one command, with SARIF, a 0-100 safety score, and a README badge.",
   "type": "module",
   "license": "MIT",
