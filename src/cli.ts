@@ -35,14 +35,14 @@ function connectOpts(opts: { stdio?: string; http?: string }): ConnectOptions {
 
 program
   .command("run")
-  .description("Connect to an MCP server and run the quality gate (functional + schema-drift; conformance + security in Phase 2).")
+  .description("Connect to an MCP server and run the quality gate: functional tests + schema-drift + official conformance + OWASP-MCP-Top-10 security.")
   .option("--stdio <command>", 'launch a stdio MCP server, e.g. "node dist/server.js"')
   .option("--http <url>", "connect to a Streamable HTTP MCP server URL")
   .option("--tests <path>", "YAML functional test spec", "merit.tests.yaml")
   .option("--snapshot <path>", "schema snapshot file", "merit.snapshot.json")
   .option("--src <dir>", "server source dir (enables dependency CVE scanning via OSV)")
   .option("--no-security", "skip the OWASP-MCP-Top-10 security checks")
-  .option("--no-probe", "skip live security probes (static checks only)")
+  .option("--probe", "run LIVE security probes — sends canary payloads to the server's tools (may trigger real tool actions; only use on a server you control). Off by default.", false)
   .option("--no-conformance", "skip the official MCP conformance suite")
   .option("--conformance-baseline <path>", "YAML of expected conformance failures (baseline)")
   .option("--min-score <n>", "fail if the score is below this", "0")

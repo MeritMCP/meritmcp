@@ -12,3 +12,11 @@ CLAUDE.md
 RESEARCH.md
 05-ROADMAP-AND-DECISIONS.md
 06-EDGE-AND-MOAT.md
+
+# Launch tooling + exposé outputs — kept private
+scripts/
+LEADERBOARD.md
+expose-results.json
+
+# Guard: probe-canary artifacts a misbehaving server might create in the cwd
+*MCPV*

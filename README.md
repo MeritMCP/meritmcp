@@ -42,7 +42,7 @@ Exit code is `0` on PASS, `1` on FAIL (gate your CI), `2` on a setup error.
 |---|---|---|
 | **Functional** | Your YAML tests (tool calls + assertions) **and** schema-snapshot drift, incl. description-only "rug-pull" detection | 30% |
 | **Conformance** | The **official** MCP conformance suite, wrapped — never reimplemented. Capability- & transport-aware so a tools-only server isn't punished for unimplemented optional features | 30% |
-| **Security** | OWASP-MCP-Top-10 (MVP: MCP01 secrets · MCP03a invisible-Unicode poisoning · MCP04 dependency CVEs via [OSV.dev](https://osv.dev) · MCP05 live command-injection probe · MCP07 HTTP auth) | 40% |
+| **Security** | OWASP-MCP-Top-10. Static (always on): MCP01 secrets · MCP03a invisible-Unicode poisoning · MCP04 dependency CVEs via [OSV.dev](https://osv.dev). Live probes (**opt-in `--probe`**, only on a server you control): MCP05 command-injection · MCP07 HTTP auth | 40% |
 
 > The conformance suite is HTTP-only. For stdio servers, Merit transparently spins up an in-process stdio→HTTP proxy so the official suite can test them.
 
@@ -59,7 +59,8 @@ meritmcp run --stdio "<command>" | --http <url>  [options]
   --out <path>                   write the full report JSON (open, reproducible scoring)
   --badge <path>                 write a shields.io endpoint badge JSON
   --pr-comment <path>            write the PR-comment markdown
-  --no-security | --no-probe | --no-conformance
+  --probe                        run LIVE security probes (side effects! only on servers you control)
+  --no-security | --no-conformance
   --json                         print the raw report JSON
 
 meritmcp snapshot --stdio "<command>" --out merit.snapshot.json   # capture/refresh the tool surface

@@ -1,8 +1,13 @@
-// MCP05 — command-injection probe. For each string argument we send a benign canary
-// (`echo MCPV_<rand>` plus shell-metachar variants). If the marker comes back but the
-// literal payload does NOT (i.e., the wrapper was evaluated, not echoed verbatim), the
-// input reached a shell → confirmed injection (high confidence). A tool that merely
-// echoes input returns the payload verbatim → PASS. Portable across bash and cmd.exe.
+// MCP05 — command-injection probe. We only flag input reaching a real OS shell, proven
+// two ways that a JS evaluator / input-reflector / error message physically cannot fake:
+//   1. EXACT echo:  `echo <marker>` → output trims to EXACTLY <marker> (the shell ran echo
+//      and returned only the marker). A tool that reflects input returns "echo <marker>";
+//      a code evaluator throws an error that merely *contains* the marker — neither matches.
+//   2. ARITHMETIC:  `…$((a*b))…` → output contains <marker><product>. Only a POSIX shell
+//      expands `$((a*b))`; JS/cmd.exe/reflection keep the literal `$((a*b))`, so the
+//      computed product never appears unless a shell actually evaluated it.
+// This deliberately does NOT fire on tools that run code by design (e.g. browser_evaluate)
+// — running JS in a sandbox is the feature, not OS command injection.
 import { McpClient, ToolInfo } from "../../adapter/mcpClient.js";
 import { Finding } from "../../types.js";
 
@@ -13,11 +18,22 @@ export async function probeInjection(client: McpClient, tools: ToolInfo[]): Prom
     const stringParams = stringPropsOf(tool.inputSchema);
     if (stringParams.length === 0) continue;
 
-    let confirmed: { param: string; payload: string } | null = null;
+    let confirmed: { param: string; payload: string; how: string } | null = null;
 
     for (const param of stringParams) {
-      const marker = `MCPV_${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
-      const payloads = [`echo ${marker}`, `; echo ${marker}`, `& echo ${marker}`, `$(echo ${marker})`, "`echo " + marker + "`"];
+      const marker = `MCPV${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+      const a = 30 + Math.floor(Math.random() * 60);
+      const b = 30 + Math.floor(Math.random() * 60);
+      const product = a * b;
+      const proof = `${marker}${product}`; // appears only if a shell echoed the marker AND expanded $((a*b))
+      const arith = `$((${a}*${b}))`;
+      const payloads = [
+        `echo ${marker}`, // whole-input exec → exact-echo match (bash + cmd.exe)
+        `${marker}${arith}`, // bash whole-input → "<marker><product>: not found"
+        `; echo ${marker}${arith}`, // bash concatenation injection
+        `& echo ${marker}${arith}`, // bash/cmd concatenation injection
+        "`echo " + marker + arith + "`", // bash backtick injection
+      ];
 
       for (const payload of payloads) {
         const args = baselineArgs(tool.inputSchema);
@@ -28,8 +44,12 @@ export async function probeInjection(client: McpClient, tools: ToolInfo[]): Prom
         } catch {
           continue; // call rejected (e.g. validation) — not an injection signal
         }
-        if (out.includes(marker) && !out.includes(payload)) {
-          confirmed = { param, payload };
+        if (out.trim() === marker) {
+          confirmed = { param, payload, how: "echo executed by a shell" };
+          break;
+        }
+        if (out.includes(proof)) {
+          confirmed = { param, payload, how: "shell arithmetic $((a*b)) expansion" };
           break;
         }
       }
@@ -42,7 +62,7 @@ export async function probeInjection(client: McpClient, tools: ToolInfo[]): Prom
         owasp: "MCP05:2025",
         severity: "critical",
         confidence: "high",
-        message: `Tool "${tool.name}" evaluated a shell payload in argument "${confirmed.param}" (canary executed: ${confirmed.payload}).`,
+        message: `Tool "${tool.name}" passed argument "${confirmed.param}" to an OS shell (confirmed via ${confirmed.how}; canary: ${confirmed.payload}).`,
         location: `mcp-server://tool/${tool.name}`,
       });
     }

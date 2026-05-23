@@ -75,7 +75,7 @@ export async function run(cfg: RunConfig): Promise<Report> {
         transport: cfg.connect.transport,
         url: cfg.connect.url,
         srcDir: cfg.srcDir,
-        probe: cfg.probe ?? true,
+        probe: cfg.probe ?? false,
       });
       security = { ran: true, score: sec.score, findings: sec.findings };
     }

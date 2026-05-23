@@ -1,6 +1,6 @@
 {
   "name": "meritmcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The CI quality gate for MCP servers — functional tests + official conformance + OWASP-MCP-Top-10 security in one command, with SARIF, a 0-100 safety score, and a README badge.",
   "type": "module",
   "license": "MIT",
@@ -20,7 +20,7 @@
     "merit": "dist/src/cli.js"
   },
   "files": [
-    "dist",
+    "dist/src",
     "config",
     "schemas",
     "action.yml",
@@ -38,7 +38,7 @@
     "fixture:clean": "tsx fixtures/clean-server/server.ts",
     "fixture:vulnerable": "tsx fixtures/vulnerable-server/server.ts",
     "demo:pass": "npm run build && node dist/src/cli.js run --stdio \"node dist/fixtures/clean-server/server.js\" --tests merit.tests.yaml",
-    "demo:fail": "npm run build && node dist/src/cli.js run --stdio \"node dist/fixtures/vulnerable-server/server.js\" --tests merit.tests.yaml"
+    "demo:fail": "npm run build && node dist/src/cli.js run --stdio \"node dist/fixtures/vulnerable-server/server.js\" --tests merit.tests.yaml --probe"
   },
   "keywords": [
     "mcp",
