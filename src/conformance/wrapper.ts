@@ -1,6 +1,9 @@
-// Wraps the official MCP conformance suite (@modelcontextprotocol/conformance@0.1.16).
-// We never fork it — we spawn it (via `node <bin>`, no shell, so args are safe) against an
-// HTTP URL, then read the per-scenario checks.json files it writes to -o <dir>.
+// Wraps the official MCP conformance suite, pinned to a known-good version. We never fork it
+// — we shell out to it. To keep Merit's OWN dependency footprint tiny (the suite pulls in
+// octokit + express), we do NOT bundle it: it's fetched on demand via npx, invoked through
+// node's npx-cli (no shell; args passed as argv → injection-safe). If a user has installed
+// @modelcontextprotocol/conformance locally, we use that copy instead (offline-friendly).
+// Then we read the per-scenario checks.json files it writes to -o <dir>.
 //
 // Scoring is capability- and transport-aware: a tools-only server shouldn't be punished for
 // not implementing resources/prompts/logging, and HTTP-transport scenarios (dns-rebinding,
@@ -13,6 +16,36 @@ import { createRequire } from "node:module";
 import { ConformanceOutcome, ConformanceScenario } from "../types.js";
 
 const require = createRequire(import.meta.url);
+const CONFORMANCE_PKG = "@modelcontextprotocol/conformance";
+const CONFORMANCE_VERSION = "0.1.16"; // pinned; isolated behind this wrapper (0.2.0 split incoming)
+
+interface Launcher {
+  cmd: string;
+  prefix: string[];
+  shell: boolean;
+}
+
+/** Prefer a locally-installed conformance (fast/offline); else fetch on demand via npx. */
+function conformanceLauncher(): Launcher | null {
+  try {
+    const bin = join(dirname(require.resolve(`${CONFORMANCE_PKG}/package.json`)), "dist", "index.js");
+    return { cmd: process.execPath, prefix: [bin], shell: false };
+  } catch {
+    /* not installed — fetch on demand below */
+  }
+  const npxCli = findNpxCli();
+  if (npxCli) return { cmd: process.execPath, prefix: [npxCli, "-y", `${CONFORMANCE_PKG}@${CONFORMANCE_VERSION}`], shell: false };
+  // Last resort: npx through a shell (the only path that needs a shell, for npx.cmd on Windows).
+  return { cmd: process.platform === "win32" ? "npx.cmd" : "npx", prefix: ["-y", `${CONFORMANCE_PKG}@${CONFORMANCE_VERSION}`], shell: true };
+}
+
+function findNpxCli(): string | null {
+  const dir = dirname(process.execPath);
+  for (const c of [join(dir, "node_modules", "npm", "bin", "npx-cli.js"), join(dir, "..", "lib", "node_modules", "npm", "bin", "npx-cli.js")]) {
+    if (existsSync(c)) return c;
+  }
+  return null;
+}
 
 export interface ConformanceOptions {
   transport: "stdio" | "http";
@@ -23,19 +56,16 @@ export interface ConformanceOptions {
 }
 
 export async function runConformance(url: string, opts: ConformanceOptions): Promise<ConformanceOutcome> {
-  let binJs: string;
-  try {
-    binJs = join(dirname(require.resolve("@modelcontextprotocol/conformance/package.json")), "dist", "index.js");
-  } catch {
-    return notRun("conformance package not installed");
-  }
+  const launcher = conformanceLauncher();
+  if (!launcher) return notRun("could not locate node/npx to run the conformance suite");
 
   const outDir = mkdtempSync(join(tmpdir(), "merit-conf-"));
-  const args = [binJs, "server", "--url", url, "--suite", opts.suite ?? "active", "-o", outDir, "--verbose"];
-  if (opts.baseline && existsSync(opts.baseline)) args.push("--expected-failures", opts.baseline);
+  const suiteArgs = ["server", "--url", url, "--suite", opts.suite ?? "active", "-o", outDir, "--verbose"];
+  if (opts.baseline && existsSync(opts.baseline)) suiteArgs.push("--expected-failures", opts.baseline);
 
   try {
-    await exec(process.execPath, args, opts.timeoutMs ?? 180000);
+    // First on-demand run may download the suite via npx → allow generous time.
+    await exec(launcher.cmd, [...launcher.prefix, ...suiteArgs], opts.timeoutMs ?? 300000, launcher.shell);
   } catch (e) {
     cleanup(outDir);
     return notRun(`could not run conformance: ${(e as Error).message}`);
@@ -116,9 +146,9 @@ function isApplicable(scenario: string, opts: ConformanceOptions): boolean {
   }
 }
 
-function exec(cmd: string, args: string[], timeoutMs: number): Promise<void> {
+function exec(cmd: string, args: string[], timeoutMs: number, shell = false): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { shell: false });
+    const child = spawn(cmd, args, { shell });
     const timer = setTimeout(() => {
       child.kill();
       reject(new Error("conformance timed out"));

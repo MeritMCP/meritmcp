@@ -44,7 +44,7 @@ Exit code is `0` on PASS, `1` on FAIL (gate your CI), `2` on a setup error.
 | **Conformance** | The **official** MCP conformance suite, wrapped — never reimplemented. Capability- & transport-aware so a tools-only server isn't punished for unimplemented optional features | 30% |
 | **Security** | OWASP-MCP-Top-10. Static (always on): MCP01 secrets · MCP03a invisible-Unicode poisoning · MCP04 dependency CVEs via [OSV.dev](https://osv.dev). Live probes (**opt-in `--probe`**, only on a server you control): MCP05 command-injection · MCP07 HTTP auth | 40% |
 
-> The conformance suite is HTTP-only. For stdio servers, Merit transparently spins up an in-process stdio→HTTP proxy so the official suite can test them.
+> The conformance suite is HTTP-only. For stdio servers, Merit transparently spins up an in-process stdio→HTTP proxy so the official suite can test them. The suite is **not bundled** — it's fetched on demand via `npx` (keeping Merit's own install tiny); for fully-offline runs, install `@modelcontextprotocol/conformance` yourself, or pass `--no-conformance`.
 
 ## CLI
 
