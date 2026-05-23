@@ -42,9 +42,26 @@ Exit code is `0` on PASS, `1` on FAIL (gate your CI), `2` on a setup error.
 |---|---|---|
 | **Functional** | Your YAML tests (tool calls + assertions) **and** schema-snapshot drift, incl. description-only "rug-pull" detection | 30% |
 | **Conformance** | The **official** MCP conformance suite, wrapped — never reimplemented. Capability- & transport-aware so a tools-only server isn't punished for unimplemented optional features | 30% |
-| **Security** | OWASP-MCP-Top-10. Static (always on): MCP01 secrets · MCP03a invisible-Unicode poisoning · MCP04 dependency CVEs via [OSV.dev](https://osv.dev). Live probes (**opt-in `--probe`**, only on a server you control): MCP05 command-injection · MCP07 HTTP auth | 40% |
+| **Security** | OWASP-MCP-Top-10. **Static** (always on): MCP01 secrets · MCP02 misleading tool annotations · MCP03a invisible-Unicode poisoning · MCP04 dependency CVEs via [OSV.dev](https://osv.dev) · MCP09 tool shadowing / homoglyphs. **Live probes** (opt-in `--probe`, only on a server you control): MCP05 command-injection · MCP07 HTTP auth | 40% |
 
 > The conformance suite is HTTP-only. For stdio servers, Merit transparently spins up an in-process stdio→HTTP proxy so the official suite can test them. The suite is **not bundled** — it's fetched on demand via `npx` (keeping Merit's own install tiny); for fully-offline runs, install `@modelcontextprotocol/conformance` yourself, or pass `--no-conformance`.
+
+### Security checks in detail
+
+Every finding carries a **confidence** level, and confidence is load-bearing: only a **high-confidence Critical/High** finding can cap the score and force a FAIL (see [Scoring](#scoring-open--reproducible)). Lower-confidence findings are reported but never hard-fail — Merit is built not to cry wolf.
+
+| Rule id | OWASP | Detects | How | Severity | Confidence |
+|---|---|---|---|---|---|
+| `MCP01-secret` | MCP01 | Hard-coded credentials in tool metadata — AWS / GitHub (incl. fine-grained PATs) / OpenAI-Anthropic / Google / Slack / Stripe / npm / Azure keys, PEM private keys, JWTs, GCP service-account JSON | **Structured-format match only** — no entropy guessing, so IDs/hashes/UUIDs in tool names don't trigger it | high (critical for PEM) | high (medium for JWT / GCP — can be doc examples) |
+| `MCP02-scope` | MCP02 | A mutating/destructive tool that falsely advertises `readOnlyHint: true` | Annotation vs. tool name/description mismatch | medium | medium |
+| `MCP03a-unicode` | MCP03 | Invisible/abusable Unicode in names, descriptions or schemas (zero-width, bidi-override, tag chars) — classic tool-poisoning | Codepoint scan | high | high |
+| `MCP04-dep` | MCP04 | Known-vulnerable dependencies | Queries [OSV.dev](https://osv.dev) for the lockfile under `--src` | from advisory | high |
+| `MCP05-cmd-injection` | MCP05 | A tool that passes input to an OS shell | **Live probe** (`--probe`): sends a benign marker + arithmetic and only flags on real shell evidence (computed result / exact echo) — immune to JS-eval reflection | critical | high |
+| `MCP07-auth` | MCP07 | An HTTP MCP endpoint that accepts unauthenticated sessions | **Live probe**: expects `401` + `WWW-Authenticate` | high | high |
+| `MCP09-shadow` | MCP09 | Duplicate tool names (one tool shadowing/impersonating another) | Name-collision check | high | high |
+| `MCP09-homoglyph` | MCP09 | Non-ASCII look-alike characters in a tool name (impersonation) | Name codepoint scan | high | medium |
+
+The two `--probe` checks (MCP05, MCP07) actually *call* the server, so they're **off by default** and should only ever run against a server you own.
 
 ## CLI
 
