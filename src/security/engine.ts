@@ -1,10 +1,12 @@
-// Security engine: runs the 5 high-confidence MVP checks (static + probe) and returns
+// Security engine: runs the OWASP-MCP-Top-10 checks (static + opt-in probe) and returns
 // the findings + a 0–100 security sub-score. Static = tool-metadata + deps; probe = live.
 import { McpClient, ToolInfo } from "../adapter/mcpClient.js";
 import { Finding } from "../types.js";
 import { scanSecrets } from "./static/secrets.js";
 import { scanUnicode } from "./static/unicode.js";
 import { scanDeps } from "./static/deps-osv.js";
+import { scanShadowing } from "./static/shadowing.js";
+import { scanPrivilege } from "./static/privilege.js";
 import { probeInjection } from "./probe/injection.js";
 import { probeAuth } from "./probe/authz.js";
 import { securityScore } from "../report/score.js";
@@ -32,11 +34,13 @@ export async function runSecurity(input: SecurityInput): Promise<SecurityResult>
     text: `${t.name}\n${t.description ?? ""}\n${JSON.stringify(t.inputSchema ?? {})}`,
     location: `mcp-server://tool/${t.name}`,
   }));
-  findings.push(...scanSecrets(metaInputs));
-  findings.push(...scanUnicode(metaInputs));
+  findings.push(...scanSecrets(metaInputs)); // MCP01
+  findings.push(...scanUnicode(metaInputs)); // MCP03a
+  findings.push(...scanShadowing(input.tools)); // MCP09 (duplicate / homoglyph tool names)
+  findings.push(...scanPrivilege(input.tools)); // MCP02 (misleading readOnlyHint)
 
   // --- STATIC: dependencies (requires --src) ---
-  if (input.srcDir) findings.push(...(await scanDeps(input.srcDir)));
+  if (input.srcDir) findings.push(...(await scanDeps(input.srcDir))); // MCP04
 
   // --- PROBE: command injection ---
   if (input.probe) findings.push(...(await probeInjection(input.client, input.tools)));

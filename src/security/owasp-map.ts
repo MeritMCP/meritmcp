@@ -14,6 +14,30 @@ export interface RuleMeta {
 }
 
 export const RULES: Record<string, RuleMeta> = {
+  "MCP02-scope": {
+    ruleId: "MCP02-scope",
+    owasp: "MCP02:2025",
+    title: "Misleading tool annotation (privilege/scope)",
+    defaultSeverity: "medium",
+    remediation: "A tool that mutates state must not be annotated readOnlyHint:true. Mark mutating tools with destructiveHint and accurate hints so clients can warn the user.",
+    helpUri: OWASP_HELP,
+  },
+  "MCP09-shadow": {
+    ruleId: "MCP09-shadow",
+    owasp: "MCP09:2025",
+    title: "Duplicate tool name (shadowing)",
+    defaultSeverity: "high",
+    remediation: "Ensure every tool name is unique; a duplicate definition can shadow or impersonate another tool.",
+    helpUri: OWASP_HELP,
+  },
+  "MCP09-homoglyph": {
+    ruleId: "MCP09-homoglyph",
+    owasp: "MCP09:2025",
+    title: "Non-ASCII / homoglyph tool name (impersonation)",
+    defaultSeverity: "high",
+    remediation: "Use ASCII tool names; non-ASCII look-alike characters can impersonate a legitimate tool to humans and models.",
+    helpUri: OWASP_HELP,
+  },
   "MCP01-secret": {
     ruleId: "MCP01-secret",
     owasp: "MCP01:2025",
