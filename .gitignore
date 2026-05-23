@@ -13,8 +13,9 @@ RESEARCH.md
 05-ROADMAP-AND-DECISIONS.md
 06-EDGE-AND-MOAT.md
 
-# Launch tooling + exposé outputs — kept private
-scripts/
+# Exposé: the scanner scripts ARE committed (run in CI sandbox); generated/local artifacts are not
+scripts/servers.json
+scripts/scan-workspace/
 LEADERBOARD.md
 expose-results.json
 

@@ -1,0 +1,47 @@
+name: Exposé — scan the MCP ecosystem
+
+# Runs the Merit exposé in a DISPOSABLE GitHub-hosted sandbox (never on a real machine):
+# pulls the official MCP registry, installs + scans keyless npm/stdio servers, and uploads
+# the Trust Report as an artifact. Static-only by default (no live probes, no tool calls)
+# so the scan itself has no side effects on the servers it touches.
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "How many registry servers to scan"
+        required: false
+        default: "100"
+      conformance:
+        description: "Also run the conformance suite (slower; calls one tool per server)"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  expose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npm run build
+      - name: Fetch registry server list
+        run: node scripts/fetch-registry.mjs --limit=${{ inputs.limit }}
+      - name: Scan (static-only by default; never sends live probes)
+        run: node scripts/expose.mjs ${{ inputs.conformance && '--conformance' || '' }}
+      - name: Upload Trust Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-trust-report
+          path: |
+            LEADERBOARD.md
+            expose-results.json
+          if-no-files-found: warn
