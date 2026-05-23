@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { writeFileSync, existsSync } from "node:fs";
+import { writeFileSync, existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { run } from "./orchestrator.js";
 import { McpClient, ConnectOptions } from "./adapter/mcpClient.js";
 import { capture } from "./snapshot/capture.js";
@@ -26,8 +28,18 @@ tests:
   #     content_contains: "5"
 `;
 
+// Read the real version from package.json (dist/src/cli.js → ../../package.json) so the
+// CLI + SARIF report can never drift from the published version.
+const VERSION: string = (() => {
+  try {
+    return JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "package.json"), "utf8")).version;
+  } catch {
+    return "0.0.0";
+  }
+})();
+
 const program = new Command();
-program.name("merit").description("The CI quality gate for MCP servers").version("0.1.0");
+program.name("merit").description("The CI quality gate for MCP servers").version(VERSION);
 
 function connectOpts(opts: { stdio?: string; http?: string }): ConnectOptions {
   return opts.http ? { transport: "http", url: opts.http } : { transport: "stdio", command: opts.stdio };
@@ -67,7 +79,7 @@ program
         conformance: opts.conformance,
         conformanceBaseline: opts.conformanceBaseline,
       });
-      if (opts.sarif) writeFileSync(opts.sarif, JSON.stringify(toSarif(report), null, 2));
+      if (opts.sarif) writeFileSync(opts.sarif, JSON.stringify(toSarif(report, VERSION), null, 2));
       if (opts.badge) writeFileSync(opts.badge, JSON.stringify(toBadge(report), null, 2));
       if (opts.prComment) writeFileSync(opts.prComment, toMarkdown(report));
       if (opts.out) writeFileSync(opts.out, JSON.stringify({ ...report, scoring: DEFAULT_SCORING, generatedAt: new Date().toISOString() }, null, 2));
