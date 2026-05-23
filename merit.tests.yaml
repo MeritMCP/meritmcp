@@ -1,0 +1,32 @@
+version: 1
+# Demo functional spec. The clean fixture passes all three; the vulnerable fixture
+# fails them (wrong sum + missing echo tool).
+#   npm run demo:pass   →  green PASS
+#   npm run demo:fail   →  red FAIL
+tests:
+  - name: "tool catalog is stable"
+    op: list_tools
+    assert:
+      contains_tools: [add, echo]
+
+  - name: "add returns the sum"
+    op: call_tool
+    tool: add
+    arguments: { a: 2, b: 3 }
+    assert:
+      not_error: true
+      content_contains: "5"
+      structured:
+        json_schema:
+          type: object
+          required: [sum]
+          properties:
+            sum: { const: 5 }
+
+  - name: "echo round-trips text"
+    op: call_tool
+    tool: echo
+    arguments: { text: "ping" }
+    assert:
+      not_error: true
+      content_contains: "ping"

@@ -1,0 +1,70 @@
+{
+  "name": "meritmcp",
+  "version": "0.1.0",
+  "description": "The CI quality gate for MCP servers — functional tests + official conformance + OWASP-MCP-Top-10 security in one command, with SARIF, a 0-100 safety score, and a README badge.",
+  "type": "module",
+  "license": "MIT",
+  "author": "'//e0",
+  "homepage": "https://github.com/meritmcp/meritmcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/meritmcp/meritmcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/meritmcp/meritmcp/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "merit": "dist/src/cli.js"
+  },
+  "files": [
+    "dist",
+    "config",
+    "schemas",
+    "action.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build",
+    "fixture:clean": "tsx fixtures/clean-server/server.ts",
+    "fixture:vulnerable": "tsx fixtures/vulnerable-server/server.ts",
+    "demo:pass": "npm run build && node dist/src/cli.js run --stdio \"node dist/fixtures/clean-server/server.js\" --tests merit.tests.yaml",
+    "demo:fail": "npm run build && node dist/src/cli.js run --stdio \"node dist/fixtures/vulnerable-server/server.js\" --tests merit.tests.yaml"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "security",
+    "conformance",
+    "testing",
+    "owasp",
+    "sarif",
+    "badge",
+    "ci"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/conformance": "0.1.16",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "commander": "^14.0.0",
+    "safe-stable-stringify": "^2.5.0",
+    "yaml": "^2.7.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}

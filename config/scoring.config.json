@@ -1,0 +1,9 @@
+{
+  "_comment": "Open, reproducible scoring weights. Mirrors DEFAULT_SCORING in src/report/score.ts. Score = 0.30*Functional + 0.30*Conformance + 0.40*Security; engines that don't run have their weight redistributed.",
+  "weights": { "functional": 0.3, "conformance": 0.3, "security": 0.4 },
+  "securityPenalties": { "critical": 40, "high": 20, "medium": 8, "low": 3 },
+  "confidenceMultiplier": { "high": 1.0, "medium": 0.5, "low": 0.2 },
+  "rugPullPenalty": 15,
+  "capScore": 49,
+  "bands": { "brightgreen": 85, "green": 70, "yellow": 50, "red": 30 }
+}

@@ -1,0 +1,120 @@
+name: "Merit"
+description: "The CI quality gate for MCP servers — functional + official conformance + OWASP-MCP-Top-10 security, with a SARIF report and a score badge."
+branding:
+  icon: "shield"
+  color: "green"
+
+inputs:
+  command:
+    description: "stdio command to launch the MCP server (e.g. 'node dist/server.js'). Use this OR url."
+    required: false
+  url:
+    description: "Streamable HTTP MCP server URL. Use this OR command."
+    required: false
+  tests:
+    description: "Path to the YAML functional test spec."
+    required: false
+    default: "merit.tests.yaml"
+  src:
+    description: "Server source dir (enables dependency CVE scanning via OSV)."
+    required: false
+  snapshot:
+    description: "Schema snapshot file."
+    required: false
+    default: "merit.snapshot.json"
+  min-score:
+    description: "Fail the job if the score is below this (0-100)."
+    required: false
+    default: "0"
+  conformance:
+    description: "Run the official MCP conformance suite ('true'/'false')."
+    required: false
+    default: "true"
+  conformance-baseline:
+    description: "YAML of expected conformance failures (baseline)."
+    required: false
+  version:
+    description: "meritmcp npm version / dist-tag to run."
+    required: false
+    default: "latest"
+  node-version:
+    description: "Node version to set up."
+    required: false
+    default: "20"
+  comment-pr:
+    description: "Post a sticky PR comment with the results ('true'/'false')."
+    required: false
+    default: "true"
+
+outputs:
+  score:
+    description: "The 0-100 safety score."
+    value: ${{ steps.meritmcp.outputs.score }}
+  verdict:
+    description: "PASS or FAIL."
+    value: ${{ steps.meritmcp.outputs.verdict }}
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - id: meritmcp
+      shell: bash
+      env:
+        IN_COMMAND: ${{ inputs.command }}
+        IN_URL: ${{ inputs.url }}
+        IN_TESTS: ${{ inputs.tests }}
+        IN_SRC: ${{ inputs.src }}
+        IN_SNAPSHOT: ${{ inputs.snapshot }}
+        IN_MIN_SCORE: ${{ inputs.min-score }}
+        IN_CONFORMANCE: ${{ inputs.conformance }}
+        IN_BASELINE: ${{ inputs.conformance-baseline }}
+        IN_VERSION: ${{ inputs.version }}
+      run: |
+        set -u
+        ARGS=(run --tests "$IN_TESTS" --snapshot "$IN_SNAPSHOT" --min-score "$IN_MIN_SCORE"
+              --sarif merit.sarif --out merit.json --badge merit-badge.json --pr-comment merit-pr.md)
+        [ -n "$IN_COMMAND" ] && ARGS+=(--stdio "$IN_COMMAND")
+        [ -n "$IN_URL" ] && ARGS+=(--http "$IN_URL")
+        [ -n "$IN_SRC" ] && ARGS+=(--src "$IN_SRC")
+        [ "$IN_CONFORMANCE" = "false" ] && ARGS+=(--no-conformance)
+        [ -n "$IN_BASELINE" ] && ARGS+=(--conformance-baseline "$IN_BASELINE")
+
+        set +e
+        npx -y "meritmcp@${IN_VERSION}" "${ARGS[@]}"
+        CODE=$?
+        set -e
+
+        if [ -f merit.json ]; then
+          echo "score=$(node -p "require('./merit.json').score")" >> "$GITHUB_OUTPUT"
+          echo "verdict=$(node -p "require('./merit.json').verdict")" >> "$GITHUB_OUTPUT"
+        fi
+        exit $CODE
+
+    - name: Upload SARIF to code scanning
+      if: ${{ always() && hashFiles('merit.sarif') != '' }}
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: merit.sarif
+
+    - name: Sticky PR comment
+      if: ${{ always() && github.event_name == 'pull_request' && inputs.comment-pr == 'true' }}
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          if (!fs.existsSync('merit-pr.md')) return;
+          const body = fs.readFileSync('merit-pr.md', 'utf8');
+          const marker = '<!-- merit-report -->';
+          const { owner, repo } = context.repo;
+          const issue_number = context.issue.number;
+          const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number });
+          const existing = comments.find((c) => c.body && c.body.includes(marker));
+          if (existing) {
+            await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+          } else {
+            await github.rest.issues.createComment({ owner, repo, issue_number, body });
+          }

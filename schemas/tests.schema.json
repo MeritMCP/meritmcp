@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://meritmcp.dev/schemas/tests.schema.json",
+  "title": "Merit functional test spec",
+  "type": "object",
+  "required": ["tests"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": 1 },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "transport": { "enum": ["stdio", "http"] },
+        "command": { "type": "string" },
+        "url": { "type": "string" },
+        "env": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "op", "assert"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "op": { "enum": ["list_tools", "call_tool"] },
+          "tool": { "type": "string" },
+          "arguments": { "type": "object" },
+          "assert": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "not_error": { "type": "boolean" },
+              "is_error": { "type": "boolean" },
+              "content_contains": { "type": "string" },
+              "content_matches": { "type": "string" },
+              "error_contains": { "type": "string" },
+              "tool_count": { "type": "integer" },
+              "contains_tools": { "type": "array", "items": { "type": "string" } },
+              "structured": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": { "json_schema": { "type": "object" } }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

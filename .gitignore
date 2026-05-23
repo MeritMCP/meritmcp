@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+# Merit run artifacts (the snapshot IS committed; results are not)
+results/
+merit.json
+*.sarif
+
+# Internal strategy / working notes — kept private (not for the public repo)
+CLAUDE.md
+RESEARCH.md
+05-ROADMAP-AND-DECISIONS.md
+06-EDGE-AND-MOAT.md
