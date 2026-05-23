@@ -6,57 +6,66 @@
 // sends live probe payloads, and conformance (which calls one tool per server) is opt-in.
 // Not part of the npm package (scripts/ is never published). Usage:
 //   node scripts/fetch-registry.mjs --limit=100 && node scripts/expose.mjs [--conformance]
-import { run } from "../dist/src/orchestrator.js";
 import { readFileSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
+const SCAN_ONE = fileURLToPath(new URL("./scan-one.mjs", import.meta.url));
 const servers = JSON.parse(readFileSync(new URL("./servers.json", import.meta.url), "utf8"));
 // Opt-in: conformance CALLS tools (tools-call-simple-text), which can have real side
 // effects on powerful third-party servers (browser nav, command exec). Off by default.
 const withConformance = process.argv.includes("--conformance");
 const PER_SERVER_TIMEOUT = withConformance ? 300000 : 60000; // static = fast; conformance needs room
 
-function withTimeout(promise, ms) {
-  let t;
-  const timeout = new Promise((_, rej) => {
-    t = setTimeout(() => rej(new Error(`timed out after ${Math.round(ms / 1000)}s`)), ms);
+// Scan one server in an ISOLATED subprocess (scan-one.mjs), then hard-kill its entire
+// process group. Untrusted servers spawn heavy/zombie children (browsers, native builds)
+// that don't die on disconnect; without this they pile up and starve the CI runner
+// ("the hosted runner lost communication"). One group per server, reaped every time.
+function scanOne(command, timeoutMs) {
+  return new Promise((resolve) => {
+    const args = [SCAN_ONE, command];
+    if (withConformance) args.push("--conformance");
+    const child = spawn(process.execPath, args, {
+      detached: process.platform !== "win32", // own process group on POSIX → killable as a group
+      stdio: ["ignore", "pipe", "ignore"], // ignore the server's noisy stderr
+    });
+    let out = "";
+    let done = false;
+    const finish = (result) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try {
+        if (process.platform === "win32") spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+        else process.kill(-child.pid, "SIGKILL"); // kill the whole group (server + its children)
+      } catch {
+        /* already gone */
+      }
+      resolve(result);
+    };
+    const timer = setTimeout(() => finish({ ok: false, error: `timed out after ${Math.round(timeoutMs / 1000)}s` }), timeoutMs);
+    child.stdout.on("data", (d) => (out += d));
+    child.on("error", (e) => finish({ ok: false, error: String(e.message) }));
+    child.on("close", () => {
+      try {
+        finish(JSON.parse(out.trim()));
+      } catch {
+        finish({ ok: false, error: "no result from scan subprocess (crashed?)" });
+      }
+    });
   });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
 }
 
 const results = [];
+let i = 0;
 for (const s of servers) {
-  process.stderr.write(`▶ scanning ${s.name} …\n`);
+  process.stderr.write(`▶ [${++i}/${servers.length}] ${s.name} …\n`);
   const t0 = Date.now();
-  try {
-    const report = await withTimeout(
-      run({
-        connect: { transport: "stdio", command: s.command, env: s.env },
-        testsPath: undefined, // no functional tests for third-party servers
-        snapshotPath: undefined,
-        security: true,
-        probe: false, // NEVER send live canary payloads to third-party servers — they have side effects
-        conformance: withConformance,
-      }),
-      PER_SERVER_TIMEOUT,
-    );
-    const sev = { critical: 0, high: 0, medium: 0, low: 0 };
-    for (const f of report.security.findings) sev[f.severity]++;
-    results.push({
-      name: s.name,
-      ok: true,
-      verdict: report.verdict,
-      score: report.score,
-      capped: report.capped,
-      security: sev,
-      findings: report.security.findings.map((f) => ({ rule: f.ruleId, owasp: f.owasp, sev: f.severity, conf: f.confidence, msg: f.message })),
-      conformance: report.conformance.ran ? { passed: report.conformance.passed, total: report.conformance.total } : null,
-      ms: Date.now() - t0,
-    });
-    process.stderr.write(`  ${report.verdict} · ${report.score}/100\n`);
-  } catch (e) {
-    results.push({ name: s.name, ok: false, error: String(e?.message ?? e) });
-    process.stderr.write(`  ✖ could not scan: ${e?.message ?? e}\n`);
-  }
+  const res = await scanOne(s.command, PER_SERVER_TIMEOUT);
+  res.name = s.name;
+  res.ms = Date.now() - t0;
+  results.push(res);
+  process.stderr.write(`  ${res.ok ? `${res.verdict} · ${res.score}/100` : `✖ ${res.error}`}\n`);
 }
 
 const scanned = results.filter((r) => r.ok);

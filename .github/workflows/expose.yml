@@ -9,9 +9,9 @@ on:
   workflow_dispatch:
     inputs:
       limit:
-        description: "How many registry servers to scan"
+        description: "How many registry servers to scan (start ~50; each is isolated + killed after)"
         required: false
-        default: "100"
+        default: "50"
       conformance:
         description: "Also run the conformance suite (slower; calls one tool per server)"
         type: boolean
